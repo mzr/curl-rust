@@ -1,19 +1,17 @@
 #![allow(bad_style)]
 #![doc(html_root_url = "https://docs.rs/curl-sys/0.3")]
 
+// These `extern crate` are required for conditional linkages of curl.
 #[cfg(feature = "rustls")]
 extern crate crustls;
-extern crate libc;
 #[cfg(link_libnghttp2)]
 extern crate libnghttp2_sys;
 #[cfg(link_libz)]
 extern crate libz_sys;
 #[cfg(feature = "mesalink")]
-extern crate mesalink; // ensure lib is linked to
+extern crate mesalink;
 #[cfg(link_openssl)]
 extern crate openssl_sys;
-#[cfg(windows)]
-extern crate winapi;
 
 use libc::c_ulong;
 use libc::{c_char, c_double, c_int, c_long, c_short, c_uint, c_void, size_t, time_t};
@@ -130,6 +128,16 @@ pub struct curl_fileinfo {
     pub b_data: *mut c_char,
     pub b_size: size_t,
     pub b_used: size_t,
+}
+
+pub const CURL_BLOB_NOCOPY: c_uint = 0;
+pub const CURL_BLOB_COPY: c_uint = 1;
+
+#[repr(C)]
+pub struct curl_blob {
+    pub data: *mut c_void,
+    pub len: size_t,
+    pub flags: c_uint,
 }
 
 pub const CURL_CHUNK_BGN_FUNC_OK: c_long = 0;
@@ -369,6 +377,7 @@ pub const CURLOPTTYPE_LONG: CURLoption = 0;
 pub const CURLOPTTYPE_OBJECTPOINT: CURLoption = 10_000;
 pub const CURLOPTTYPE_FUNCTIONPOINT: CURLoption = 20_000;
 pub const CURLOPTTYPE_OFF_T: CURLoption = 30_000;
+pub const CURLOPTTYPE_BLOB: CURLoption = 40_000;
 
 pub const CURLOPT_FILE: CURLoption = CURLOPTTYPE_OBJECTPOINT + 1;
 pub const CURLOPT_URL: CURLoption = CURLOPTTYPE_OBJECTPOINT + 2;
@@ -576,7 +585,10 @@ pub const CURLOPT_SSL_OPTIONS: CURLoption = CURLOPTTYPE_LONG + 216;
 // pub const CURLOPT_DNS_LOCAL_IP4: CURLoption = CURLOPTTYPE_OBJECTPOINT + 222;
 // pub const CURLOPT_DNS_LOCAL_IP6: CURLoption = CURLOPTTYPE_OBJECTPOINT + 223;
 // pub const CURLOPT_LOGIN_OPTIONS: CURLoption = CURLOPTTYPE_OBJECTPOINT + 224;
+pub const CURLOPT_EXPECT_100_TIMEOUT_MS: CURLoption = CURLOPTTYPE_LONG + 227;
+pub const CURLOPT_PINNEDPUBLICKEY: CURLoption = CURLOPTTYPE_OBJECTPOINT + 230;
 pub const CURLOPT_UNIX_SOCKET_PATH: CURLoption = CURLOPTTYPE_OBJECTPOINT + 231;
+pub const CURLOPT_PATH_AS_IS: CURLoption = CURLOPTTYPE_LONG + 234;
 pub const CURLOPT_PIPEWAIT: CURLoption = CURLOPTTYPE_LONG + 237;
 pub const CURLOPT_CONNECT_TO: CURLoption = CURLOPTTYPE_OBJECTPOINT + 243;
 pub const CURLOPT_PROXY_CAINFO: CURLoption = CURLOPTTYPE_OBJECTPOINT + 246;
@@ -585,6 +597,12 @@ pub const CURLOPT_PROXY_SSLCERT: CURLoption = CURLOPTTYPE_OBJECTPOINT + 254;
 pub const CURLOPT_PROXY_SSLKEY: CURLoption = CURLOPTTYPE_OBJECTPOINT + 256;
 
 pub const CURLOPT_MAXAGE_CONN: CURLoption = CURLOPTTYPE_LONG + 288;
+
+pub const CURLOPT_SSLCERT_BLOB: CURLoption = CURLOPTTYPE_BLOB + 291;
+pub const CURLOPT_SSLKEY_BLOB: CURLoption = CURLOPTTYPE_BLOB + 292;
+pub const CURLOPT_PROXY_SSLCERT_BLOB: CURLoption = CURLOPTTYPE_BLOB + 293;
+pub const CURLOPT_PROXY_SSLKEY_BLOB: CURLoption = CURLOPTTYPE_BLOB + 294;
+pub const CURLOPT_ISSUERCERT_BLOB: CURLoption = CURLOPTTYPE_BLOB + 295;
 
 pub const CURL_IPRESOLVE_WHATEVER: c_int = 0;
 pub const CURL_IPRESOLVE_V4: c_int = 1;
@@ -1030,6 +1048,9 @@ extern "C" {
         buflen: size_t,
         n: *mut size_t,
     ) -> CURLcode;
+
+    #[cfg(feature = "upkeep_7_62_0")]
+    pub fn curl_easy_upkeep(curl: *mut CURL) -> CURLcode;
 
     pub fn curl_multi_init() -> *mut CURLM;
     pub fn curl_multi_add_handle(multi_handle: *mut CURLM, curl_handle: *mut CURL) -> CURLMcode;

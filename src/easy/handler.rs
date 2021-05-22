@@ -12,12 +12,12 @@ use curl_sys;
 use libc::{self, c_char, c_double, c_int, c_long, c_ulong, c_void, size_t};
 use socket2::Socket;
 
-use easy::form;
-use easy::list;
-use easy::windows;
-use easy::{Form, List};
-use panic;
-use Error;
+use crate::easy::form;
+use crate::easy::list;
+use crate::easy::windows;
+use crate::easy::{Form, List};
+use crate::panic;
+use crate::Error;
 
 /// A trait for the various callbacks used by libcurl to invoke user code.
 ///
@@ -581,7 +581,7 @@ impl<H: Handler> Easy2<H> {
     /// `perform` and need to be reset manually (or via the `reset` method) if
     /// this is not desired.
     pub fn new(handler: H) -> Easy2<H> {
-        ::init();
+        crate::init();
         unsafe {
             let handle = curl_sys::curl_easy_init();
             assert!(!handle.is_null());
@@ -880,12 +880,13 @@ impl<H> Easy2<H> {
         self.setopt_ptr(curl_sys::CURLOPT_CONNECT_TO, ptr as *const _)
     }
 
-    // /// Indicates whether sequences of `/../` and `/./` will be squashed or not.
-    // ///
-    // /// By default this option is `false` and corresponds to
-    // /// `CURLOPT_PATH_AS_IS`.
-    // pub fn path_as_is(&mut self, as_is: bool) -> Result<(), Error> {
-    // }
+    /// Indicates whether sequences of `/../` and `/./` will be squashed or not.
+    ///
+    /// By default this option is `false` and corresponds to
+    /// `CURLOPT_PATH_AS_IS`.
+    pub fn path_as_is(&mut self, as_is: bool) -> Result<(), Error> {
+        self.setopt_long(curl_sys::CURLOPT_PATH_AS_IS, as_is as c_long)
+    }
 
     /// Provide the URL of a proxy to use.
     ///
@@ -934,6 +935,17 @@ impl<H> Easy2<H> {
         self.setopt_str(curl_sys::CURLOPT_PROXY_SSLCERT, &sslcert)
     }
 
+    /// Set the client certificate for the proxy using an in-memory blob.
+    ///
+    /// The specified byte buffer should contain the binary content of the
+    /// certificate, which will be copied into the handle.
+    ///
+    /// By default this option is not set and corresponds to
+    /// `CURLOPT_PROXY_SSLCERT_BLOB`.
+    pub fn proxy_sslcert_blob(&mut self, blob: &[u8]) -> Result<(), Error> {
+        self.setopt_blob(curl_sys::CURLOPT_PROXY_SSLCERT_BLOB, blob)
+    }
+
     /// Set private key for HTTPS proxy.
     ///
     /// By default this value is not set and corresponds to
@@ -941,6 +953,17 @@ impl<H> Easy2<H> {
     pub fn proxy_sslkey(&mut self, sslkey: &str) -> Result<(), Error> {
         let sslkey = CString::new(sslkey)?;
         self.setopt_str(curl_sys::CURLOPT_PROXY_SSLKEY, &sslkey)
+    }
+
+    /// Set the pricate key for the proxy using an in-memory blob.
+    ///
+    /// The specified byte buffer should contain the binary content of the
+    /// private key, which will be copied into the handle.
+    ///
+    /// By default this option is not set and corresponds to
+    /// `CURLOPT_PROXY_SSLKEY_BLOB`.
+    pub fn proxy_sslkey_blob(&mut self, blob: &[u8]) -> Result<(), Error> {
+        self.setopt_blob(curl_sys::CURLOPT_PROXY_SSLKEY_BLOB, blob)
     }
 
     /// Indicates the type of proxy being used.
@@ -1929,6 +1952,18 @@ impl<H> Easy2<H> {
         self.setopt_path(curl_sys::CURLOPT_SSLCERT, cert.as_ref())
     }
 
+    /// Set the SSL client certificate using an in-memory blob.
+    ///
+    /// The specified byte buffer should contain the binary content of your
+    /// client certificate, which will be copied into the handle. The format of
+    /// the certificate can be specified with `ssl_cert_type`.
+    ///
+    /// By default this option is not set and corresponds to
+    /// `CURLOPT_SSLCERT_BLOB`.
+    pub fn ssl_cert_blob(&mut self, blob: &[u8]) -> Result<(), Error> {
+        self.setopt_blob(curl_sys::CURLOPT_SSLCERT_BLOB, blob)
+    }
+
     /// Specify type of the client SSL certificate.
     ///
     /// The string should be the format of your certificate. Supported formats
@@ -1955,6 +1990,18 @@ impl<H> Easy2<H> {
     /// By default this option is not set and corresponds to `CURLOPT_SSLKEY`.
     pub fn ssl_key<P: AsRef<Path>>(&mut self, key: P) -> Result<(), Error> {
         self.setopt_path(curl_sys::CURLOPT_SSLKEY, key.as_ref())
+    }
+
+    /// Specify an SSL private key using an in-memory blob.
+    ///
+    /// The specified byte buffer should contain the binary content of your
+    /// private key, which will be copied into the handle. The format of
+    /// the private key can be specified with `ssl_key_type`.
+    ///
+    /// By default this option is not set and corresponds to
+    /// `CURLOPT_SSLKEY_BLOB`.
+    pub fn ssl_key_blob(&mut self, blob: &[u8]) -> Result<(), Error> {
+        self.setopt_blob(curl_sys::CURLOPT_SSLKEY_BLOB, blob)
     }
 
     /// Set type of the private key file.
@@ -2121,6 +2168,18 @@ impl<H> Easy2<H> {
         self.setopt_path(curl_sys::CURLOPT_ISSUERCERT, path.as_ref())
     }
 
+    /// Set the issuer SSL certificate using an in-memory blob.
+    ///
+    /// The specified byte buffer should contain the binary content of a CA
+    /// certificate in the PEM format. The certificate will be copied into the
+    /// handle.
+    ///
+    /// By default this option is not set and corresponds to
+    /// `CURLOPT_ISSUERCERT_BLOB`.
+    pub fn issuer_cert_blob(&mut self, blob: &[u8]) -> Result<(), Error> {
+        self.setopt_blob(curl_sys::CURLOPT_ISSUERCERT_BLOB, blob)
+    }
+
     /// Specify directory holding CA certificates
     ///
     /// Names a directory holding multiple CA certificates to verify the peer
@@ -2170,23 +2229,24 @@ impl<H> Easy2<H> {
         self.setopt_long(curl_sys::CURLOPT_CERTINFO, enable as c_long)
     }
 
-    // /// Set pinned public key.
-    // ///
-    // /// Pass a pointer to a zero terminated string as parameter. The string can
-    // /// be the file name of your pinned public key. The file format expected is
-    // /// "PEM" or "DER". The string can also be any number of base64 encoded
-    // /// sha256 hashes preceded by "sha256//" and separated by ";"
-    // ///
-    // /// When negotiating a TLS or SSL connection, the server sends a certificate
-    // /// indicating its identity. A public key is extracted from this certificate
-    // /// and if it does not exactly match the public key provided to this option,
-    // /// curl will abort the connection before sending or receiving any data.
-    // ///
-    // /// By default this option is not set and corresponds to
-    // /// `CURLOPT_PINNEDPUBLICKEY`.
-    // pub fn pinned_public_key(&mut self, enable: bool) -> Result<(), Error> {
-    //     self.setopt_long(curl_sys::CURLOPT_CERTINFO, enable as c_long)
-    // }
+    /// Set pinned public key.
+    ///
+    /// Pass a pointer to a zero terminated string as parameter. The string can
+    /// be the file name of your pinned public key. The file format expected is
+    /// "PEM" or "DER". The string can also be any number of base64 encoded
+    /// sha256 hashes preceded by "sha256//" and separated by ";"
+    ///
+    /// When negotiating a TLS or SSL connection, the server sends a certificate
+    /// indicating its identity. A public key is extracted from this certificate
+    /// and if it does not exactly match the public key provided to this option,
+    /// curl will abort the connection before sending or receiving any data.
+    ///
+    /// By default this option is not set and corresponds to
+    /// `CURLOPT_PINNEDPUBLICKEY`.
+    pub fn pinned_public_key(&mut self, pubkey: &str) -> Result<(), Error> {
+        let key = CString::new(pubkey)?;
+        self.setopt_str(curl_sys::CURLOPT_PINNEDPUBLICKEY, &key)
+    }
 
     /// Specify a source for random data
     ///
@@ -2289,6 +2349,33 @@ impl<H> Easy2<H> {
 
     // =========================================================================
     // getters
+
+    /// Set maximum time to wait for Expect 100 request before sending body.
+    ///
+    /// `curl` has internal heuristics that trigger the use of a `Expect`
+    /// header for large enough request bodies where the client first sends the
+    /// request header along with an `Expect: 100-continue` header. The server
+    /// is supposed to validate the headers and respond with a `100` response
+    /// status code after which `curl` will send the actual request body.
+    ///
+    /// However, if the server does not respond to the initial request
+    /// within `CURLOPT_EXPECT_100_TIMEOUT_MS` then `curl` will send the
+    /// request body anyways.
+    ///
+    /// The best-case scenario is where the request is invalid and the server
+    /// replies with a `417 Expectation Failed` without having to wait for or process
+    /// the request body at all. However, this behaviour can also lead to higher
+    /// total latency since in the best case, an additional server roundtrip is required
+    /// and in the worst case, the request is delayed by `CURLOPT_EXPECT_100_TIMEOUT_MS`.
+    ///
+    /// More info: https://curl.se/libcurl/c/CURLOPT_EXPECT_100_TIMEOUT_MS.html
+    ///
+    /// By default this option is not set and corresponds to
+    /// `CURLOPT_EXPECT_100_TIMEOUT_MS`.
+    pub fn expect_100_timeout(&mut self, timeout: Duration) -> Result<(), Error> {
+        let ms = timeout.as_secs() * 1000 + (timeout.subsec_nanos() / 1_000_000) as u64;
+        self.setopt_long(curl_sys::CURLOPT_EXPECT_100_TIMEOUT_MS, ms as c_long)
+    }
 
     /// Get info on unmet time conditional
     ///
@@ -2710,6 +2797,21 @@ impl<H> Easy2<H> {
         ret
     }
 
+    /// Some protocols have "connection upkeep" mechanisms. These mechanisms
+    /// usually send some traffic on existing connections in order to keep them
+    /// alive; this can prevent connections from being closed due to overzealous
+    /// firewalls, for example.
+    ///
+    /// Currently the only protocol with a connection upkeep mechanism is
+    /// HTTP/2: when the connection upkeep interval is exceeded and upkeep() is
+    /// called, an HTTP/2 PING frame is sent on the connection.
+    #[cfg(feature = "upkeep_7_62_0")]
+    pub fn upkeep(&self) -> Result<(), Error> {
+        let ret = unsafe { self.cvt(curl_sys::curl_easy_upkeep(self.inner.handle)) };
+        panic::propagate();
+        return ret;
+    }
+
     /// Unpause reading on a connection.
     ///
     /// Using this function, you can explicitly unpause a connection that was
@@ -2913,6 +3015,16 @@ impl<H> Easy2<H> {
             let rc = curl_sys::curl_easy_setopt(self.inner.handle, opt, val);
             self.cvt(rc)
         }
+    }
+
+    fn setopt_blob(&mut self, opt: curl_sys::CURLoption, val: &[u8]) -> Result<(), Error> {
+        let blob = curl_sys::curl_blob {
+            data: val.as_ptr() as *const c_void as *mut c_void,
+            len: val.len(),
+            flags: curl_sys::CURL_BLOB_COPY,
+        };
+        let blob_ptr = &blob as *const curl_sys::curl_blob;
+        unsafe { self.cvt(curl_sys::curl_easy_setopt(self.inner.handle, opt, blob_ptr)) }
     }
 
     fn getopt_bytes(&mut self, opt: curl_sys::CURLINFO) -> Result<Option<&[u8]>, Error> {
